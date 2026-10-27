@@ -1,0 +1,56 @@
+name: Build Tenkaichi Decomp Xbox UWP
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # يتيح لك تشغيل البناء يدوياً
+
+jobs:
+  build-uwp:
+    runs-on: ubuntu-latest # البناء على لينكس أسرع وأسهل لتجنب MSBuild
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive # جلب كافة المكتبات الفرعية إن وجدت
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-state: '3.11'
+
+    - name: Install Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build mingw-w64 tools-build libsdl3-dev
+
+    - name: Setup Build Configuration (No ISO)
+      run: |
+        # تهيئة إعدادات البناء بدون الحاجة لملف ISO وفحص ملفات الـ Assets
+        # نمرر معاملات لتخطي الاستخراج أو استخدام ملفات وهمية (Stub / Skip ISO check)
+        python3 configure.py --skip-iso --platform xbox-uwp
+        
+        # إذا كان المشروع يتطلب أداة تثبيت فرعية للأكواد فقط
+        # python3 install.py --check || true
+
+    - name: Compile Project using Ninja
+      run: |
+        # البناء باستخدام نظام Ninja مباشرة وتحديد المقصد لتجنب حلول sln
+        ninja -C build
+
+    - name: Package UWP AppX Bundle
+      run: |
+        # تجميع الملفات الناتجة إلى حزمة AppX/MSIX قابلة للتثبيت على الـ Xbox Dev Mode
+        mkdir -p output/
+        cp -r port/src/ build/Tenkaichi3Decomp.exe output/
+        # تشغيل سكربت التعبئة الخاص بالمنصة إذا كان متوفراً
+        # tar -czf Tenkaichi3Decomp-XboxUWP.tar.gz -C output .
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tenkaichi3Decomp-Xbox-UWP
+        path: build/ # أو المسار النهائي للملفات التنفيذية الناتجة
