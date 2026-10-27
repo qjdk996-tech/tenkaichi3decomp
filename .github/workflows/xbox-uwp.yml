@@ -1,0 +1,40 @@
+name: Build Tenkaichi Decomp Xbox UWP
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Prepare Build Variables & Skip ISO Check
+      shell: bash
+      run: |
+        # هنا يتم تمرير أوامر تخطي التحقق من الـ ISO إذا كان مشروع التفكيك يعتمد عليها للبلد الناتيوني
+        echo "PORT_PLATFORM=UWP" >> $GITHUB_ENV
+        echo "SKIP_ISO_CHECK=1" >> $GITHUB_ENV
+
+    - name: Build UWP Package via CLI
+      run: |
+        msbuild port/Project.csproj /p:Configuration=Release `
+                                    /p:Platform=x64 `
+                                    /p:AppxBundle=Always `
+                                    /p:AppxBundlePlatforms="x64" `
+                                    /p:AppxPackageDir="${{ github.workspace }}\AppxPackages" `
+                                    /p:UapAppxPackageBuildMode=StoreUpload `
+                                    /p:AppxPackageSigningEnabled=false
+
+    - name: Upload Xbox UWP Build Artifact
+      uses: actions/artifacts/upload-artifact@v4
+      with:
+        name: Tenkaichi-Xbox-UWP
+        path: ${{ github.workspace }}\AppxPackages
