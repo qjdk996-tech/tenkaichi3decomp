@@ -1,0 +1,60 @@
+name: Build Tenkaichi Decomp Xbox UWP
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-uwp:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # تثبيت المكتبات اللازمة لبناء أدوات البورت إذا تطلب الأمر
+        # pip install splat64[mips] (إذا كنت تبني شيئاً يتطلب تفكيكاً كاملاً، ولكننا هنا نتجاوزه)
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Configure Project without ISO
+      run: |
+        # تشغيل سكربت الإعداد وتخطي فحص القرص (ISO) والاعتماد على الجداول وهياكل البيانات الفارغة بـ port/data
+        python configure.py --no-iso --platform uwp
+      # ملاحظة: تأكد من أن السكربت configure.py في المشروع يدعم التمرير بدون ديسك، 
+      # وإلا يتم نسخ ملفات الهياكل الفارغة تلقائياً كبديل للملفات المستخرجة.
+
+    - name: Build UWP App (without SLN)
+      run: |
+        # البناء مباشرة باستخدام ملف المشروع vxproj المخصص للـ UWP بدلاً من الحل الكامل sln
+        # وتحديد المنصة والـ Configuration المطلوبة لجهاز الـ Xbox
+        msbuild port/src/platform/uwp/Tenkaichi3Decomp.vcxproj `
+          /p:Configuration=Release `
+          /p:Platform=x64 `
+          /p:AppxBundle=Always `
+          /p:AppxBundlePlatforms="x64" `
+          /p:UapAppxPackageBuildMode=StoreUpload `
+          /p:HasPackageAndPublishMenu=false
+
+    - name: Upload UWP Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tenkaichi3Decomp-Xbox-UWP
+        path: |
+          port/src/platform/uwp/AppPackages/
+          **/*.appxbundle
+          **/*.msixbundle
